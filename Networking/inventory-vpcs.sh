@@ -28,5 +28,5 @@ region="$(require_region)"
 
 aws ec2 describe-vpcs \
   --region "$region" \
-  --query 'Vpcs[].{Name:Tags[?Key==`Name`]|[0].Value,VpcId:VpcId,CIDR:CidrBlock,State:State,Default:IsDefault,Tenancy:InstanceTenancy,DhcpOptionsId:DhcpOptionsId}' \
+  --query 'Vpcs[].{Name:Tags[?Key==`Name`]|[0].Value,VpcId:VpcId,CIDR:CidrBlock,IPv6CIDRs:join(`,`,Ipv6CidrBlockAssociationSet[].Ipv6CidrBlock || `[]`),State:State,Default:IsDefault,Tenancy:InstanceTenancy,DhcpOptionsId:DhcpOptionsId}' \
   --output "$output"

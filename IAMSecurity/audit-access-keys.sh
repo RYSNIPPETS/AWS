@@ -25,23 +25,22 @@ while (( $# > 0 )); do
   esac
 done
 
-validate_positive_integer "--days" "$days"
-days=$((10#$days))
+days="$(validate_positive_integer "--days" "$days")"
 require_aws
 require_jq
 
 printf 'USER\tACCESS_KEY_ID\tSTATUS\tCREATED\tAGE_DAYS\tLAST_USED\tLAST_SERVICE\tASSESSMENT\n'
 
-users="$(aws iam list-users --query 'Users[].UserName' --output text)"
-[[ "$users" != "None" ]] || users=""
+users="$(aws iam list-users --output json | jq -r '.Users[].UserName')"
 
-for user in $users; do
-  keys_json="$(aws iam list-access-keys --user-name "$user" --output json)"
+while IFS= read -r user; do
+  [[ -n "$user" ]] || continue
+  keys="$(aws iam list-access-keys --user-name="$user" --output json \
+    | jq -r '.AccessKeyMetadata[] | [.AccessKeyId, .Status, .CreateDate] | @tsv')"
   while IFS=$'\t' read -r key_id status created; do
     [[ -n "$key_id" ]] || continue
-    normalized_created="${created/+00:00/Z}"
-    age_days="$(jq -nr --arg value "$normalized_created" \
-      '((now - ($value | fromdateiso8601)) / 86400) | floor')"
+    age_days="$(jq -ner --arg value "$created" \
+      "$aws_timestamp_jq"'((now - ($value | aws_timestamp)) / 86400) | floor')"
     last_used_json="$(aws iam get-access-key-last-used --access-key-id "$key_id" --output json)"
     last_used="$(jq -r '.AccessKeyLastUsed.LastUsedDate // "NEVER"' <<<"$last_used_json")"
     last_service="$(jq -r '.AccessKeyLastUsed.ServiceName // "-"' <<<"$last_used_json")"
@@ -54,6 +53,5 @@ for user in $users; do
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
       "$user" "$key_id" "$status" "$created" "$age_days" "$last_used" \
       "$last_service" "$assessment"
-  done < <(jq -r '.AccessKeyMetadata[] | [.AccessKeyId, .Status, .CreateDate] | @tsv' \
-    <<<"$keys_json")
-done
+  done <<<"$keys"
+done <<<"$users"

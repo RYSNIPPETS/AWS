@@ -31,26 +31,26 @@ while (( $# > 0 )); do
 done
 
 [[ -n "$log_group" ]] || die "--log-group is required"
-valid_days="1 3 5 7 14 30 60 90 120 150 180 365 400 545 731 1096 1827 2192 2557 2922 3288 3653"
-case " $valid_days " in
-  *" $days "*) ;;
-  *) die "--days must be one of: $valid_days" ;;
+case "$days" in
+  1 | 3 | 5 | 7 | 14 | 30 | 60 | 90 | 120 | 150 | 180 | 365 | 400 | 545 | 731 | 1096 | \
+    1827 | 2192 | 2557 | 2922 | 3288 | 3653) ;;
+  *) die "--days must be one of: 1 3 5 7 14 30 60 90 120 150 180 365 400 545 731 1096 1827 2192 2557 2922 3288 3653" ;;
 esac
 
 require_aws
 region="$(require_region)"
 
 require_jq
-current="$(aws logs describe-log-groups --region "$region" \
-  --log-group-name-prefix "$log_group" --output json \
-  | jq --arg name "$log_group" '[.logGroups[]
-      | select(.logGroupName == $name)
-      | {LogGroup: .logGroupName, CurrentRetentionDays: .retentionInDays,
-         StoredBytes: .storedBytes}]')"
-[[ "$(jq 'length' <<<"$current")" -eq 1 ]] || die "Log group not found: $log_group"
-jq -r '.[] | [.LogGroup, (.CurrentRetentionDays // "NEVER EXPIRES"), .StoredBytes] | @tsv' \
-  <<<"$current" | awk 'BEGIN {print "LOG_GROUP\tCURRENT_RETENTION_DAYS\tSTORED_BYTES"} {print}'
+require_logs_retention_metadata
+current="$(cloudwatch_log_group "$log_group" "$region")" || die "Could not find log group: $log_group"
+printf 'LOG_GROUP\tRETENTION_DAYS\tACCOUNT_POLICY\tCLASS\tSTORED_BYTES\n'
+jq -r '[.logGroupName, (.retentionInDays // "-"), (.retentionPolicyName // "-"),
+         (.logGroupClass // "STANDARD"), .storedBytes] | @tsv' <<<"$current"
 info "Proposed retention: ${days} days"
+
+if jq -e '.logGroupClass == "DELIVERY" or .retentionPolicyName != null' <<<"$current" >/dev/null; then
+  die "This group uses fixed Delivery retention or an account retention policy. Group-level changes cannot set its effective retention."
+fi
 
 if [[ "$execute" != "true" ]]; then
   warn "Preview only. Re-run with --execute to set retention."
@@ -58,6 +58,10 @@ if [[ "$execute" != "true" ]]; then
 fi
 
 confirm "Set retention on ${log_group} to ${days} days?"
+current="$(cloudwatch_log_group "$log_group" "$region")" || die "Could not recheck log group: $log_group"
+if jq -e '.logGroupClass == "DELIVERY" or .retentionPolicyName != null' <<<"$current" >/dev/null; then
+  die "The group is now governed by fixed Delivery retention or an account policy."
+fi
 aws logs put-retention-policy --region "$region" \
-  --log-group-name "$log_group" --retention-in-days "$days"
-info "Retention updated. Existing events older than the new limit are scheduled for deletion by CloudWatch Logs."
+  --log-group-name="$log_group" --retention-in-days "$days"
+info "CloudWatch Logs accepted the group-level retention setting for ${log_group}."

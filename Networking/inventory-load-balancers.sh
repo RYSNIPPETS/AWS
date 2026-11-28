@@ -29,5 +29,5 @@ region="$(require_region)"
 
 aws elbv2 describe-load-balancers \
   --region "$region" \
-  --query 'LoadBalancers[].{Name:LoadBalancerName,Type:Type,Scheme:Scheme,State:State.Code,VpcId:VpcId,DNSName:DNSName,Created:CreatedTime}' \
+  --query 'LoadBalancers[].{Name:LoadBalancerName,Type:Type,Scheme:Scheme,IPAddressType:IpAddressType,State:State.Code,VpcId:VpcId,DNSName:DNSName,Created:CreatedTime}' \
   --output "$output"

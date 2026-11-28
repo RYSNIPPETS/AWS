@@ -9,9 +9,9 @@ usage() {
   cat <<'EOF'
 Usage: tail-logs.sh --function NAME [--since DURATION] [--follow]
 
-Print recent events from /aws/lambda/NAME in the configured region. The default
-duration is 10m. AWS CLI duration examples include 30s, 10m, 2h, and 1d. --follow
-continues waiting for new events until interrupted.
+Print recent events from the function's configured CloudWatch log group. The default
+duration is 10m. --follow is available for Standard groups. Essentials groups
+use a Logs Insights query for recent events.
 EOF
 }
 
@@ -30,10 +30,10 @@ done
 
 [[ -n "$function_name" ]] || die "--function is required"
 require_aws
+require_jq
 region="$(require_region)"
 
-args=(--region "$region" --since "$since" --format short)
-if [[ "$follow" == "true" ]]; then
-  args+=(--follow)
-fi
-aws logs tail "/aws/lambda/${function_name}" "${args[@]}"
+configuration="$(aws lambda get-function-configuration --region "$region" \
+  --function-name="$function_name" --output json)"
+log_group="$(jq -er '.LoggingConfig.LogGroup // ("/aws/lambda/" + .FunctionName)' <<<"$configuration")"
+tail_cloudwatch_log_group "$log_group" "$region" "$since" "$follow"

@@ -1,7 +1,6 @@
 #!/bin/bash
-yum install httpd php php-mysql -y
-yum update -y
-chkconfig httpd on
-service httpd start
-echo "<?php phpinfo();?>" > /var/www/html/index.php
-wget https://url.to.php
+set -Eeuo pipefail
+
+dnf install -y httpd php php-fpm php-mysqlnd
+printf '%s\n' '<?php echo "PHP is ready."; ?>' > /var/www/html/index.php
+systemctl enable --now php-fpm httpd

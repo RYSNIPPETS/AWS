@@ -31,22 +31,32 @@ done
 [[ "$tag" == *=* ]] || die "--tag KEY=VALUE is required"
 tag_key="${tag%%=*}"
 tag_value="${tag#*=}"
-[[ -n "$tag_key" && -n "$tag_value" ]] || die "Both tag key and value must be non-empty"
+[[ -n "$tag_key" ]] || die "The tag key must be non-empty"
 
 require_aws
 require_jq
 region="$(require_region)"
+filter_value="${tag_value//\\/\\\\}"
+filter_value="${filter_value//\*/\\*}"
+filter_value="${filter_value//\?/\\?}"
 filters="$(jq -nc \
   --arg tag_name "tag:${tag_key}" \
-  --arg tag_value "$tag_value" \
+  --arg tag_value "$filter_value" \
   '[{Name: $tag_name, Values: [$tag_value]},
     {Name: "instance-state-name", Values: ["running"]}]')"
 
 instances="$(aws ec2 describe-instances \
   --region "$region" \
+  --page-size 100 \
   --filters "$filters" \
-  --query 'Reservations[].Instances[].{InstanceId:InstanceId,Name:Tags[?Key==`Name`]|[0].Value,Type:InstanceType,AZ:Placement.AvailabilityZone,PrivateIP:PrivateIpAddress}' \
-  --output json)"
+  --output json \
+  | jq --arg key "$tag_key" --arg value "$tag_value" '[
+      .Reservations[].Instances[]
+      | select(.State.Name == "running")
+      | select(any(.Tags[]?; .Key == $key and .Value == $value))
+      | {InstanceId, Name: ([.Tags[]? | select(.Key == "Name") | .Value][0]),
+         Type: .InstanceType, AZ: .Placement.AvailabilityZone, PrivateIP: .PrivateIpAddress}
+    ]')"
 
 count="$(jq 'length' <<<"$instances")"
 if (( count == 0 )); then

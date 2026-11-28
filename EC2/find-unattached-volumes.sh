@@ -29,6 +29,8 @@ region="$(require_region)"
 
 aws ec2 describe-volumes \
   --region "$region" \
+  --page-size 100 \
+  --include-managed-resources \
   --filters Name=status,Values=available \
   --query 'Volumes[].{Name:Tags[?Key==`Name`]|[0].Value,VolumeId:VolumeId,SizeGiB:Size,Type:VolumeType,AZ:AvailabilityZone,Encrypted:Encrypted,Created:CreateTime}' \
   --output "$output"

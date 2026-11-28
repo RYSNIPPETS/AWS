@@ -1,7 +1,11 @@
 # Legacy examples
 
-These files are the repository's original 2018-era EC2 user-data experiments. They
-are retained for history only. They assume an old Amazon Linux package/service model,
-perform updates during boot, and write demo web content. Do not use them as current
-production bootstrap scripts without rewriting and testing them.
+These EC2 user-data examples originated in 2018 and use Amazon Linux 2023 package
+and service commands. They remain demo bootstrap scripts.
+
+- `AWSApacheCreateScript.sh` starts Apache with a sample page.
+- `AWSApacheStartScript.sh` publishes a static site from a trusted `S3_SITE_URI`.
+  The instance role needs access to list and read that source.
+- `RDS.sh` prepares Apache and PHP with the MySQL client driver for an RDS application.
+  Provision and configure the database separately.
 

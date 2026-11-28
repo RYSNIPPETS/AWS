@@ -18,7 +18,7 @@ and required AWS permissions.
 | [`IAMSecurity/`](IAMSecurity/) | 2 | IAM access-key age and usage auditing, plus AdministratorAccess policy attachment reporting. |
 | [`Lambda/`](Lambda/) | 3 | Function inventory, invocation, and CloudWatch log tailing. |
 | [`Networking/`](Networking/) | 3 | VPC, Elastic IP, and load-balancer inventory and cleanup review. |
-| [`RDS/`](RDS/) | 3 | Database instance inventory and manual snapshot discovery or creation. |
+| [`RDS/`](RDS/) | 3 | Database instance inventory and manual instance or cluster snapshot discovery and creation. |
 | [`S3/`](S3/) | 3 | Bucket inventory, public-access review, and directory synchronization. |
 
 ### Repository organization
@@ -26,12 +26,13 @@ and required AWS permissions.
 Scripts are grouped by AWS service or administrative purpose. The repository root is
 reserved for documentation and repository-wide configuration. Shared Bash helpers are
 stored in [`Shared/`](Shared/), validation scripts are stored in [`Tests/`](Tests/),
-and the original 2018-era examples are preserved in [`Legacy/`](Legacy/).
+and the EC2 bootstrap examples that originated in 2018 are in [`Legacy/`](Legacy/).
 
 ## Requirements and compatibility
 
 - Bash 3.2 or newer
-- [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+- A current release of [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html).
+  The CloudWatch retention scripts require the account-level retention response model.
 - [`jq`](https://jqlang.org/download/)
 - Configured AWS credentials and the permissions required by the selected script
 - An AWS region configured through `AWS_REGION`, `AWS_DEFAULT_REGION`, or the
@@ -50,7 +51,27 @@ make check
 ```
 
 The validation checks Bash syntax, executable permissions, and every supported
-script's help path. ShellCheck also runs when it is installed.
+script's help path. Behavioral checks use a local AWS CLI substitute and need no
+AWS credentials. ShellCheck also runs when it is installed.
+
+## Service-specific options
+
+- Cost Explorer reports accept `--billing-view-arn` and read all result pages.
+- CloudWatch and Lambda tail scripts use Logs Insights for recent events in
+  Essentials groups. `--follow` applies to Standard groups. Lambda inventory
+  and log tailing require `lambda:GetFunctionConfiguration`.
+- S3 reports list general purpose buckets across the account and directory
+  buckets in the configured region or `--directory-region`. Use `--general-only`
+  with credentials that lack `s3express:ListAllMyDirectoryBuckets`. The public
+  access audit's `--object-acls` option checks object version ACLs where applicable.
+  It can require one request per object version. Reporting reflects the inspected
+  bucket, policy, and ACL signals. Access point policies and organization-level
+  controls are outside its coverage.
+- S3 sync skips symbolic links. With `--delete`, it checks only the previewed
+  keys for deletion after uploads succeed. S3 must report a matching ETag, and
+  a newly present local file protects its destination key.
+- RDS snapshot creation accepts `--db` or `--cluster`. The age report includes
+  both by default and supports `--type instance` and `--type cluster`.
 
 ## Getting started
 

@@ -9,8 +9,8 @@ usage() {
   cat <<'EOF'
 Usage: log-groups-without-retention.sh [--output table|json|text]
 
-List CloudWatch Logs groups with no retention policy in the configured region. Such
-groups retain log events indefinitely. The default output is a table.
+List CloudWatch Logs groups in the configured region without a group or account
+retention policy. Fixed-retention Delivery groups are excluded. Default output: table.
 EOF
 }
 
@@ -25,9 +25,11 @@ done
 
 validate_output "$output"
 require_aws
+require_jq
 region="$(require_region)"
+require_logs_retention_metadata
 
 aws logs describe-log-groups \
   --region "$region" \
-  --query 'logGroups[?retentionInDays==null].{LogGroup:logGroupName,StoredBytes:storedBytes,CreatedMillis:creationTime,Class:logGroupClass}' \
+  --query 'logGroups[?retentionInDays==null && retentionPolicyName==null && logGroupClass!=`DELIVERY`].{LogGroup:logGroupName,StoredBytes:storedBytes,CreatedMillis:creationTime,Class:logGroupClass}' \
   --output "$output"

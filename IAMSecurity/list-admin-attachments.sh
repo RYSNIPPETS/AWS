@@ -31,7 +31,8 @@ partition="${caller_arn#arn:}"
 partition="${partition%%:*}"
 policy_arn="arn:${partition}:iam::aws:policy/AdministratorAccess"
 
-entities="$(aws iam list-entities-for-policy --policy-arn "$policy_arn" --output json)"
+entities="$(aws iam list-entities-for-policy --policy-arn "$policy_arn" \
+  --policy-usage-filter PermissionsPolicy --output json)"
 printf 'ENTITY_TYPE\tENTITY_NAME\tPOLICY_ARN\n'
 jq -r --arg policy "$policy_arn" '
   ((.PolicyUsers[]? | ["USER", .UserName, $policy]),

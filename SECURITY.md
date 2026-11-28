@@ -12,8 +12,7 @@ to the current code on the default branch.
 | Scripts under `Legacy/` | No |
 
 Users should pull the latest version before reporting a vulnerability or applying a
-security fix. The `Legacy/` directory contains historical examples retained for
-reference and should not be used in production.
+security fix. The `Legacy/` directory contains demo bootstrap examples for reference.
 
 ## Reporting a Vulnerability
 

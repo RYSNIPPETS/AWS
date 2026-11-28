@@ -7,36 +7,51 @@ source "$SCRIPT_DIR/../Shared/aws.sh"
 
 usage() {
   cat <<'EOF'
-Usage: find-old-manual-snapshots.sh [--days N]
+Usage: find-old-manual-snapshots.sh [--days N] [--type instance|cluster|all]
 
-List manual RDS DB snapshots created at least N days ago in the configured region.
-The default is 90 days. Output is TSV. No snapshots are deleted.
+List manual RDS instance and cluster snapshots created at least N days ago in the
+configured region. The defaults are 90 days and both snapshot types. Output is TSV.
 EOF
 }
 
 days=90
+type=all
 while (( $# > 0 )); do
   case "$1" in
     --days) [[ $# -ge 2 ]] || die "--days requires a value"; days="$2"; shift 2 ;;
+    --type) [[ $# -ge 2 ]] || die "--type requires a value"; type="$2"; shift 2 ;;
     -h | --help) usage; exit 0 ;;
     *) usage >&2; die "Unknown argument: $1" ;;
   esac
 done
 
-validate_positive_integer "--days" "$days"
-days=$((10#$days))
+case "$type" in
+  all | instance | cluster) ;;
+  *) die "--type must be instance, cluster, or all" ;;
+esac
+days="$(validate_positive_integer "--days" "$days")"
 require_aws
 require_jq
 region="$(require_region)"
-cutoff="$(utc_timestamp_days_ago "$days")"
-
-snapshots="$(aws rds describe-db-snapshots --region "$region" \
-  --snapshot-type manual --output json)"
-printf 'SNAPSHOT_ID\tDB_INSTANCE\tCREATED\tENGINE\tSIZE_GIB\tENCRYPTED\n'
-jq -r --arg cutoff "$cutoff" '
-  .DBSnapshots[]
-  | select(.SnapshotCreateTime[0:19] <= $cutoff[0:19])
-  | [.DBSnapshotIdentifier, .DBInstanceIdentifier, .SnapshotCreateTime,
-     .Engine, .AllocatedStorage, .Encrypted]
+snapshots="$(
+  if [[ "$type" != cluster ]]; then
+    aws rds describe-db-snapshots --region "$region" --snapshot-type manual --output json || exit
+  fi
+  if [[ "$type" != instance ]]; then
+    aws rds describe-db-cluster-snapshots --region "$region" --snapshot-type manual --output json || exit
+  fi
+)"
+rows="$(jq -sr --arg days "$days" "$aws_timestamp_jq"'
+  (now - (($days | tonumber) * 86400)) as $cutoff
+  | .[]
+  | ((.DBSnapshots[]? | [.DBSnapshotIdentifier, .DBInstanceIdentifier,
+        .SnapshotCreateTime, .Engine, .AllocatedStorage, .Encrypted, "instance"]),
+     (.DBClusterSnapshots[]? | [.DBClusterSnapshotIdentifier, .DBClusterIdentifier,
+        .SnapshotCreateTime, .Engine, .AllocatedStorage, .StorageEncrypted, "cluster"]))
+  | select(.[2] != null and ((.[2] | aws_timestamp) <= $cutoff))
   | @tsv
-' <<<"$snapshots"
+' <<<"$snapshots")"
+printf 'SNAPSHOT_ID\tDB_IDENTIFIER\tCREATED\tENGINE\tSIZE_GIB\tENCRYPTED\tTYPE\n'
+if [[ -n "$rows" ]]; then
+  printf '%s\n' "$rows"
+fi

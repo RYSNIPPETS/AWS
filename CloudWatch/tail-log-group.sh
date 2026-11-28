@@ -10,7 +10,8 @@ usage() {
 Usage: tail-log-group.sh --log-group NAME [--since DURATION] [--follow]
 
 Print recent CloudWatch Logs events. The default duration is 10m. AWS CLI duration
-examples include 30s, 10m, 2h, and 1d. --follow waits for new events.
+examples include 30s, 10m, 2h, and 1d. --follow is available for Standard groups.
+Essentials groups use a Logs Insights query for recent events.
 EOF
 }
 
@@ -30,9 +31,6 @@ done
 
 [[ -n "$log_group" ]] || die "--log-group is required"
 require_aws
+require_jq
 region="$(require_region)"
-args=(--region "$region" --since "$since" --format short)
-if [[ "$follow" == "true" ]]; then
-  args+=(--follow)
-fi
-aws logs tail "$log_group" "${args[@]}"
+tail_cloudwatch_log_group "$log_group" "$region" "$since" "$follow"

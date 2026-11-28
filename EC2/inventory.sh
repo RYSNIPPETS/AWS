@@ -28,5 +28,7 @@ region="$(require_region)"
 
 aws ec2 describe-instances \
   --region "$region" \
-  --query 'Reservations[].Instances[].{Name:Tags[?Key==`Name`]|[0].Value,InstanceId:InstanceId,State:State.Name,Type:InstanceType,AZ:Placement.AvailabilityZone,PrivateIP:PrivateIpAddress,PublicIP:PublicIpAddress,LaunchTime:LaunchTime}' \
+  --page-size 100 \
+  --include-managed-resources \
+  --query 'Reservations[].Instances[].{Name:Tags[?Key==`Name`]|[0].Value,InstanceId:InstanceId,State:State.Name,Type:InstanceType,AZ:Placement.AvailabilityZone,PrivateIP:PrivateIpAddress,PublicIP:PublicIpAddress,IPv6:join(`,`,NetworkInterfaces[].Ipv6Addresses[].Ipv6Address || `[]`),LaunchTime:LaunchTime}' \
   --output "$output"

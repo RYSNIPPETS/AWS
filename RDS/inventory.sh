@@ -29,5 +29,5 @@ region="$(require_region)"
 
 aws rds describe-db-instances \
   --region "$region" \
-  --query 'DBInstances[].{Identifier:DBInstanceIdentifier,Engine:Engine,Version:EngineVersion,Class:DBInstanceClass,Status:DBInstanceStatus,AZ:AvailabilityZone,MultiAZ:MultiAZ,Encrypted:StorageEncrypted,StorageGiB:AllocatedStorage,Endpoint:Endpoint.Address}' \
+  --query 'DBInstances[].{Identifier:DBInstanceIdentifier,Cluster:DBClusterIdentifier,Engine:Engine,Version:EngineVersion,Class:DBInstanceClass,Status:DBInstanceStatus,AZ:AvailabilityZone,MultiAZ:MultiAZ,Encrypted:StorageEncrypted,StorageGiB:AllocatedStorage,Endpoint:Endpoint.Address}' \
   --output "$output"
